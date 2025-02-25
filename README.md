@@ -36,5 +36,3 @@ The bot uses a unique encoding system that can hide messages of any length withi
   - Unicode characters
 
 - **Stealth Communication**: Perfect for sending hidden messages that look like regular emojis or text in any chat platform.
-
-[Rest of the README remains the same...] 
