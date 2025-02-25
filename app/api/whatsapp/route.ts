@@ -67,43 +67,68 @@ async function sendWhatsAppMessage(to: string, response: { text: string, options
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID
 
   if (!whatsappToken || !phoneNumberId) {
+    console.error("Configuration error:", {
+      hasToken: !!whatsappToken,
+      hasPhoneNumberId: !!phoneNumberId
+    })
     throw new Error("Missing WhatsApp configuration")
   }
 
+  // Format the phone number to ensure it's in the correct format
+  const formattedTo = to.startsWith('+') ? to.substring(1) : to
+
   const message = {
     messaging_product: "whatsapp",
-    to: to,  // Don't format the number - use it as received from WhatsApp
+    recipient_type: "individual",
+    to: formattedTo,
     type: "text",
-    text: { body: response.text }
+    text: { 
+      body: response.text,
+      preview_url: false
+    }
   }
 
   const url = `https://graph.facebook.com/v17.0/${phoneNumberId}/messages`
-
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${whatsappToken}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(message)
+  
+  console.log("Sending WhatsApp request:", {
+    url,
+    phoneNumberId,
+    message: JSON.stringify(message, null, 2),
+    to: formattedTo
   })
 
-  const responseData = await res.json()
-  
-  if (!res.ok) {
-    console.error("WhatsApp API Response:", {
-      status: res.status,
-      data: responseData,
-      request: {
-        to,
-        phoneNumberId,
-        message
-      }
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${whatsappToken}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(message)
     })
-    throw new Error(`WhatsApp API error: ${JSON.stringify(responseData)}`)
-  }
 
-  return responseData
+    const responseData = await res.json()
+    
+    if (!res.ok) {
+      console.error("WhatsApp API error details:", {
+        status: res.status,
+        statusText: res.statusText,
+        response: responseData,
+        requestBody: message
+      })
+      throw new Error(`WhatsApp API error: ${JSON.stringify(responseData)}`)
+    }
+
+    console.log("WhatsApp message sent successfully:", responseData)
+    return responseData
+  } catch (error: any) {
+    console.error("WhatsApp send error:", {
+      error: error.message,
+      stack: error.stack,
+      cause: error.cause
+    })
+    throw error
+  }
 }
 
 export async function GET(request: Request) {
