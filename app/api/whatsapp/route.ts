@@ -86,17 +86,35 @@ async function sendWhatsAppMessage(to: string, response: { text: string, options
 }
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url)
-  
-  // Get the verification token from query parameters
-  const mode = searchParams.get('hub.mode')
-  const token = searchParams.get('hub.verify_token')
-  const challenge = searchParams.get('hub.challenge')
+  try {
+    const { searchParams } = new URL(request.url)
+    
+    // Log the incoming verification request
+    console.log("Webhook verification request:", {
+      mode: searchParams.get('hub.mode'),
+      token: searchParams.get('hub.verify_token'),
+      challenge: searchParams.get('hub.challenge')
+    })
+    
+    const mode = searchParams.get('hub.mode')
+    const token = searchParams.get('hub.verify_token')
+    const challenge = searchParams.get('hub.challenge')
 
-  // Verify that the mode and token are correct
-  if (mode === 'subscribe' && token === process.env.WHATSAPP_VERIFY_TOKEN) {
-    return new Response(challenge, { status: 200 })
+    // Verify that the mode and token are correct
+    if (mode === 'subscribe' && token === process.env.WHATSAPP_VERIFY_TOKEN) {
+      console.log("Webhook verified successfully")
+      return new Response(challenge, { 
+        status: 200,
+        headers: {
+          'Content-Type': 'text/plain'
+        }
+      })
+    }
+
+    console.log("Webhook verification failed")
+    return new Response('Forbidden', { status: 403 })
+  } catch (error) {
+    console.error("Webhook verification error:", error)
+    return new Response('Internal Server Error', { status: 500 })
   }
-
-  return new Response('Forbidden', { status: 403 })
 } 
