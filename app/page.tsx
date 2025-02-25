@@ -13,7 +13,7 @@ export default function EncoderDecoder() {
           <Base64EncoderDecoderContent />
         </Suspense>
         <div className="text-center my-2">
-          <a href="https://github.com/paulgb/emoji-encoder" target="_blank" rel="noopener noreferrer" className="text-sm text-blue-800 hover:text-blue-900">Source on GitHub</a>
+          <a href="https://github.com/saiyaswanth007/emoji-encoder" target="_blank" rel="noopener noreferrer" className="text-sm text-blue-800 hover:text-blue-900">Source on GitHub</a>
         </div>
       </Card>
     </div>
