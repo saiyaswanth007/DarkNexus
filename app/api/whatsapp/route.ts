@@ -21,26 +21,44 @@ interface WhatsAppMessage {
 export async function POST(request: Request) {
   try {
     const body = await request.json()
+    console.log("Incoming webhook payload:", JSON.stringify(body, null, 2))
     
     // Extract the message data from the WhatsApp webhook payload
     const message = body?.entry?.[0]?.changes?.[0]?.value?.messages?.[0]
     if (!message) {
+      console.log("No message found in payload:", body)
       return NextResponse.json({ error: "Invalid webhook payload" }, { status: 400 })
     }
 
     const userId = message.from
     const messageText = message.text?.body
+    
+    console.log("Processing message:", {
+      userId,
+      messageText,
+      messageType: message.type,
+      timestamp: new Date().toISOString()
+    })
 
     // Process the message and get the response
     const response = whatsappBot.handleMessage(userId, messageText)
+    console.log("Bot response:", response)
 
     // Send the response back to WhatsApp
-    await sendWhatsAppMessage(userId, response)
+    const result = await sendWhatsAppMessage(userId, response)
+    console.log("Send result:", result)
 
     return NextResponse.json({ success: true })
-  } catch (error) {
-    console.error("WhatsApp webhook error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  } catch (error: any) {
+    console.error("Webhook handler error:", {
+      message: error.message,
+      stack: error.stack,
+      cause: error.cause
+    })
+    return NextResponse.json({ 
+      error: "Internal server error",
+      details: error.message 
+    }, { status: 500 })
   }
 }
 
@@ -49,39 +67,67 @@ async function sendWhatsAppMessage(to: string, response: { text: string, options
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID
 
   if (!whatsappToken || !phoneNumberId) {
+    console.error("Configuration error:", {
+      hasToken: !!whatsappToken,
+      hasPhoneNumberId: !!phoneNumberId
+    })
     throw new Error("Missing WhatsApp configuration")
   }
 
-  const message: WhatsAppMessage = {
-    messaging_product: "whatsapp",
-    to: to,
-    type: "text",
-    text: { body: response.text }
-  }
+  // Format the phone number to ensure it's in the correct format
+  const formattedTo = to.startsWith('+') ? to.substring(1) : to
 
-  // If there are options, add them as quick reply buttons
-  if (response.options?.length) {
-    message.text.preview_url = false
-    message.text.quick_replies = response.options.map(option => ({
-      type: "text",
-      title: option,
-      payload: option
-    }))
+  const message = {
+    messaging_product: "whatsapp",
+    recipient_type: "individual",
+    to: formattedTo,
+    type: "text",
+    text: { 
+      body: response.text,
+      preview_url: false
+    }
   }
 
   const url = `https://graph.facebook.com/v17.0/${phoneNumberId}/messages`
   
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${whatsappToken}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(message)
+  console.log("Sending WhatsApp request:", {
+    url,
+    phoneNumberId,
+    message: JSON.stringify(message, null, 2),
+    to: formattedTo
   })
 
-  if (!res.ok) {
-    throw new Error(`Failed to send WhatsApp message: ${res.statusText}`)
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${whatsappToken}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(message)
+    })
+
+    const responseData = await res.json()
+    
+    if (!res.ok) {
+      console.error("WhatsApp API error details:", {
+        status: res.status,
+        statusText: res.statusText,
+        response: responseData,
+        requestBody: message
+      })
+      throw new Error(`WhatsApp API error: ${JSON.stringify(responseData)}`)
+    }
+
+    console.log("WhatsApp message sent successfully:", responseData)
+    return responseData
+  } catch (error: any) {
+    console.error("WhatsApp send error:", {
+      error: error.message,
+      stack: error.stack,
+      cause: error.cause
+    })
+    throw error
   }
 }
 
